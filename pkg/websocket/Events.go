@@ -1,11 +1,13 @@
 package websocket
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type EventHandler func(*Event)
 
 type Event struct {
-	Name string 	 `json:"name"`
+	Event string 	 `json:"event"`
 	Data interface{} `json:"data"`
 }
 

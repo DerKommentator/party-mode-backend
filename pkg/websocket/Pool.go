@@ -6,7 +6,7 @@ type Pool struct {
 	Register	chan *Client
 	Unregister 	chan *Client
 	Clients		map[*Client]bool
-	Broadcast	chan Message
+	Broadcast	chan NewMessage
 }
 
 func NewPool() *Pool {
@@ -14,7 +14,7 @@ func NewPool() *Pool {
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
 		Clients:    make(map[*Client]bool),
-		Broadcast:  make(chan Message),
+		Broadcast:  make(chan NewMessage),
 	}
 }
 
@@ -52,11 +52,16 @@ func (pool *Pool) Start() {
 			break
 		case message := <-pool.Broadcast:
 			fmt.Println("Sending Message to all clients in Pool")
+			fmt.Println(message)
 			for client, _ := range pool.Clients {
-				if err := client.Conn.WriteJSON(message); err != nil {
+				client.Ws.Out <- (&Event{
+					Event: "response",
+					Data: message,
+				}).Raw()
+				/*if err := client.Conn.WriteJSON(message); err != nil {
 					fmt.Println(err)
 					return
-				}
+				}*/
 			}			
 		}
 	}

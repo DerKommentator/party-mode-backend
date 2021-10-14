@@ -3,7 +3,6 @@ package websocket
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
-	"io"
 	"log"
 	"net/http"
 )
@@ -24,56 +23,80 @@ type WebSocket struct {
 	Events map[string]EventHandler
 }
 
-func Upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+func NewWebSocket(w http.ResponseWriter, r *http.Request) (*WebSocket, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	return conn, nil
+	ws := &WebSocket{
+		Conn:   conn,
+		Out:    make(chan []byte),
+		In:     make(chan []byte),
+		Events: make(map[string]EventHandler),
+	}
+
+	go ws.Reader()
+	go ws.Writer()
+
+	return ws, nil
 }
 
-func Reader(conn *websocket.Conn) {
+func (ws *WebSocket) Reader() {
+	defer func() {
+		ws.Conn.Close()
+	}()
+
 	for {
-		messageType, p, err := conn.ReadMessage()
+		_, message, err := ws.Conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
-			return
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WS Message Error: %v\n", err)
+			}
+			break
 		}
 
-		fmt.Println(string(p))
+		event, err := NewEventFromRaw(message)
+		if err != nil {
+			log.Printf("Error parsing message: %v\n", err)
+		}
 
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-			return
+		if action, ok := ws.Events[event.Event]; ok {
+			action(event)
 		}
 	}
 }
 
-func Writer(conn *websocket.Conn) {
+func (ws *WebSocket) Writer() {
 	for {
-		fmt.Println("Sending")
-		messageType, r, err := conn.NextReader()
-		if err != nil {
-			log.Println(err)
-			return
-		}
+		select {
+		case message, ok := <- ws.Out:
+			fmt.Println("Writer: ", ok)
+			if !ok {
+				ws.Conn.WriteMessage(websocket.CloseMessage, make([]byte, 0))
+				return
+			}
 
-		w, err := conn.NextWriter(messageType)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		if _, err := io.Copy(w, r); err != nil {
-			log.Println(err)
-			return
-		}
-
-		if err := w.Close(); err != nil {
-			log.Println(err)
-			return
+			w, err := ws.Conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+			_, err = w.Write(message)
+			if err != nil {
+				log.Printf("Error Writing msg: %v\n", err)
+				return
+			}
+			err = w.Close()
+			if err != nil {
+				log.Printf("Error Closing writer: %v\n", err)
+				return
+			}
 		}
 	}
+}
+
+func (ws *WebSocket) On(eventName string, action EventHandler) *WebSocket {
+	ws.Events[eventName] = action
+	return ws
 }
