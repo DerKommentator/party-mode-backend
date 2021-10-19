@@ -37,6 +37,7 @@ func (pool *Pool) Start() {
 			}
 			break
 		case client := <-pool.Unregister:
+			fmt.Printf("Deleting: %v\n", client)
 			delete(pool.Clients, client)
 			fmt.Println("Size of Connection Pool: ", len(pool.Clients))
 			

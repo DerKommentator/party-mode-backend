@@ -21,6 +21,7 @@ type WebSocket struct {
 	Out chan []byte
 	In chan []byte
 	Events map[string]EventHandler
+	Client *Client
 }
 
 func NewWebSocket(w http.ResponseWriter, r *http.Request) (*WebSocket, error) {
@@ -54,8 +55,12 @@ func (ws *WebSocket) Reader() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("WS Message Error: %v\n", err)
 			}
+			log.Printf("ERROR - READ MSG: %v\n", err)
+			ws.Client.Pool.Unregister <- ws.Client
 			break
 		}
+
+		fmt.Printf("msg: %s\n", string(message))
 
 		event, err := NewEventFromRaw(message)
 		if err != nil {
@@ -72,7 +77,7 @@ func (ws *WebSocket) Writer() {
 	for {
 		select {
 		case message, ok := <- ws.Out:
-			fmt.Println("Writer: ", ok)
+			// for client, _ := range ws.Clients {
 			if !ok {
 				ws.Conn.WriteMessage(websocket.CloseMessage, make([]byte, 0))
 				return
@@ -82,11 +87,13 @@ func (ws *WebSocket) Writer() {
 			if err != nil {
 				return
 			}
+
 			_, err = w.Write(message)
 			if err != nil {
 				log.Printf("Error Writing msg: %v\n", err)
 				return
 			}
+
 			err = w.Close()
 			if err != nil {
 				log.Printf("Error Closing writer: %v\n", err)

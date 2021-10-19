@@ -19,16 +19,10 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := &websocket.Client{
-		ID:       uuid.New(),
-		Conn:     ws.Conn,
-		Pool:     pool,
-		Ws: 	  ws,
-	}
 
 	ws.On("register", func(event *websocket.Event) {
 
-		client = &websocket.Client{
+		ws.Client = &websocket.Client{
 			ID:       uuid.New(),
 			Username: event.Data.(string),
 			Conn:     ws.Conn,
@@ -36,12 +30,12 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 			Ws: 	  ws,
 		}
 
-		pool.Register <- client
+		pool.Register <- ws.Client
 		//go client.Read()
 
 		ws.Out <- (&websocket.Event{
 			Event: "registered",
-			Data:  client.ID,
+			Data:  ws.Client.ID,
 		}).Raw()
 	})
 
@@ -53,10 +47,10 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 			Data: event.Data,
 		}).Raw()*/
 
-		if client.Username != "" {
+		if ws.Client.Username != "" {
 			message := websocket.NewMessage{
-				ClientID:       client.ID,
-				ClientUsername: client.Username,
+				ClientID:       ws.Client.ID,
+				ClientUsername: ws.Client.Username,
 				Message:        event.Data.(string),
 			}
 
