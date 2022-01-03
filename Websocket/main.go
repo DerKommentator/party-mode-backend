@@ -9,7 +9,6 @@ import (
 	"net/http"
 )
 
-
 func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("WebSocket Endpoint Hit")
 
@@ -19,7 +18,6 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	ws.On("register", func(event *websocket.Event) {
 
 		ws.Client = &websocket.Client{
@@ -27,7 +25,7 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 			Username: event.Data.(string),
 			Conn:     ws.Conn,
 			Pool:     pool,
-			Ws: 	  ws,
+			Ws:       ws,
 		}
 
 		pool.Register <- ws.Client
@@ -57,8 +55,26 @@ func wsHandler(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 			pool.Broadcast <- message
 		}
 	})
-}
 
+	ws.On("videoSyncProcess", func(event *websocket.Event) {
+		fmt.Printf("videoSyncProcess received: %s\n", event.Data)
+
+		/*ws.Out <- (&websocket.Event{
+			Event: "response",
+			Data: event.Data,
+		}).Raw()*/
+
+		/*if ws.Client.Username != "" {
+			message := websocket.NewMessage{
+				ClientID:       ws.Client.ID,
+				ClientUsername: ws.Client.Username,
+				Message:        event.Data.(string),
+			}
+
+			pool.Broadcast <- message
+		}*/
+	})
+}
 
 var router = mux.NewRouter()
 
@@ -76,6 +92,6 @@ func main() {
 	setupRoutes()
 	err := http.ListenAndServe(":8080", router)
 	if err != nil {
-		return 
+		return
 	}
 }
